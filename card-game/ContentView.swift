@@ -1,61 +1,113 @@
-//
-//  ContentView.swift
-//  card-game
-//
-//  Created by Diego de la O on 02/01/26.
-//
-
 import SwiftUI
-import SwiftData
 
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
-
+    @StateObject private var viewModel = GameViewModel()
+    
     var body: some View {
-        NavigationSplitView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
+        VStack(spacing: 20) {
+            HStack {
+                Text("Turno \(viewModel.gameEngine.turnCount)")
+                    .font(.headline)
+                Spacer()
+                Text("Mana: \(viewModel.gameEngine.currentPlayer.mana)/\(viewModel.gameEngine.currentPlayer.maxMana)")
+                    .foregroundColor(.blue)
+            }
+            .padding()
+            
+            if viewModel.gameEngine.turnCount % 2 == 1 {
+                VStack {
+                    Text("Tu mano")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 10) {
+                            ForEach(viewModel.gameEngine.currentPlayer.hand) { card in
+                                CardView(card: card)
+                                    .onTapGesture {
+                                        if let index = viewModel.gameEngine.currentPlayer.hand.firstIndex(where: { $0.id == card.id }) {
+                                            viewModel.playCard(at: index)
+                                        }
+                                    }
+                            }
+                        }
+                        .padding()
                     }
                 }
-                .onDelete(perform: deleteItems)
+            } else {
+                Text("Turno de la IA...")
+                    .italic()
+                    .foregroundColor(.gray)
             }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                }
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
+            
+            VStack {
+                Text("Tu campo")
+                    .font(.caption)
+                HStack(spacing: 8) {
+                    ForEach(viewModel.gameEngine.currentPlayer.battlefield) { card in
+                        CardView(card: card)
+                            .frame(width: 60, height: 80)
                     }
                 }
+                .padding(.horizontal)
             }
-        } detail: {
-            Text("Select an item")
-        }
-    }
-
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
-        }
-    }
-
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
+            
+            VStack {
+                Text("Campo enemigo")
+                    .font(.caption)
+                HStack(spacing: 8) {
+                    ForEach(viewModel.gameEngine.opponent.battlefield) { card in
+                        CardView(card: card)
+                            .frame(width: 60, height: 80)
+                            .opacity(0.7)
+                    }
+                }
+                .padding(.horizontal)
             }
+            
+            Spacer()
+            
+            HStack {
+                Button("Siguiente turno") {
+                    viewModel.nextTurn()
+                }
+                .buttonStyle(.borderedProminent)
+                
+                Button("Reiniciar") {
+                    viewModel.resetGame()
+                }
+                .buttonStyle(.bordered)
+            }
+            .padding()
         }
+        .padding()
     }
 }
 
-#Preview {
-    ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
+struct CardView: View {
+    let card: Card
+    
+    var body: some View {
+        VStack(spacing: 4) {
+            Text(card.name)
+                .font(.caption)
+                .lineLimit(1)
+            Text("\(card.cost) ⚡")
+                .font(.caption2)
+                .foregroundColor(.orange)
+            Text(card.type.rawValue)
+                .font(.caption2)
+                .foregroundColor(.secondary)
+        }
+        .frame(width: 70, height: 100)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(card.type == .creature ? Color.red.opacity(0.2) :
+                      card.type == .spell ? Color.blue.opacity(0.2) :
+                      Color.green.opacity(0.2))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.gray, lineWidth: 1)
+        )
+    }
 }
